@@ -49,6 +49,34 @@ a.btn{text-decoration:none;padding:7px 11px;border-radius:8px;font-size:12.5px;f
 .opt.wrong{background:#fdeceb;border-color:var(--red);color:var(--red)}
 .fb{margin-top:8px;font-size:13px;color:#555;border-left:3px solid var(--gold);padding:5px 10px;display:none;line-height:1.4}
 footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
+/* Flag button */
+.b-flag{background:#fff;border:1px solid var(--line);color:#aaa;padding:7px 11px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer}
+.b-flag.flagged{background:#fdeceb;border-color:var(--red);color:var(--red)}
+/* Notes panel */
+#notes-fab{position:fixed;bottom:20px;right:20px;background:var(--coral);color:#fff;border:0;border-radius:50px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.2);z-index:300;display:none}
+#notes-overlay{display:none;position:fixed;inset:0;background:var(--cream);z-index:400;overflow-y:auto}
+.nheader{background:var(--dark);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0}
+.nback{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;padding:0 6px}
+.nheader h2{font-size:16px;margin:0;flex:1}
+.ncopy{background:var(--gold);color:var(--dark);border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.nclear{background:#fdeceb;color:var(--red);border:0;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer}
+.nmain{max-width:800px;margin:0 auto;padding:16px 20px}
+.nitem{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0}
+.nitem-title{font-weight:700;font-size:14px;margin-bottom:4px}
+.nitem-note{font-size:13px;color:#555;margin-bottom:8px}
+.nitem-meta{font-size:11px;color:#999}
+.nedit{background:none;border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;margin-right:6px}
+.ndel{background:none;border:1px solid #fcc;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;color:var(--red)}
+.nempty{color:#999;padding:40px;text-align:center}
+/* Flag modal */
+#flag-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center}
+#flag-modal.open{display:flex}
+.fbox{background:#fff;border-radius:14px;padding:20px;width:90%;max-width:420px}
+.fbox h3{font-size:16px;font-weight:700;margin-bottom:12px;color:var(--dark)}
+.fbox textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px;font-size:14px;height:90px;resize:none;font-family:inherit}
+.fbox-acts{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+.fsave{background:var(--coral);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:700;cursor:pointer}
+.fcancel{background:#eee;color:var(--dark);border:0;border-radius:8px;padding:9px 14px;font-size:14px;cursor:pointer}
 </style>
 </head><body>
 <header>
@@ -59,6 +87,29 @@ footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
 <div class="bar"><input id="q" placeholder="Search..."><span class="count" id="count"></span></div>
 <main id="main"></main>
 <footer>PDFs open in Google Drive. &copy; Advisory Science</footer>
+
+<button id="notes-fab" onclick="openNotes()">&#128203; My Notes</button>
+
+<div id="notes-overlay">
+  <div class="nheader">
+    <button class="nback" onclick="closeNotes()">&#8592;</button>
+    <h2>My Review Notes</h2>
+    <button class="ncopy" onclick="copyNotes()">Copy all</button>
+    <button class="nclear" onclick="clearAll()">Clear all</button>
+  </div>
+  <div class="nmain" id="notes-list"></div>
+</div>
+
+<div id="flag-modal">
+  <div class="fbox">
+    <h3 id="flag-modal-title"></h3>
+    <textarea id="flag-note" placeholder="What did you notice? (optional)"></textarea>
+    <div class="fbox-acts">
+      <button class="fcancel" onclick="closeFlag()">Cancel</button>
+      <button class="fsave" onclick="saveFlag()">Save note</button>
+    </div>
+  </div>
+</div>
 
 <div id="quiz-overlay">
   <div class="qheader">
@@ -101,6 +152,84 @@ function btn(label,cls,href){
              :`<span class="b-soon">${label}</span>`;
 }
 
+// Flags / notes
+const STORE_KEY="adsci_notes";
+function getFlags(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}");}catch{return {};}}
+function saveFlags(f){localStorage.setItem(STORE_KEY,JSON.stringify(f));}
+function flagKey(subject,paper,title){return [subject,paper,title].filter(Boolean).join("|");}
+function isFlagged(k){return !!getFlags()[k];}
+
+let _flagKey="", _flagTitle="";
+function openFlag(subject,paper,title){
+  _flagKey=flagKey(subject,paper,title);
+  _flagTitle=title;
+  document.getElementById("flag-modal-title").textContent="Note: "+title;
+  const existing=getFlags()[_flagKey];
+  document.getElementById("flag-note").value=existing?existing.note:"";
+  document.getElementById("flag-modal").classList.add("open");
+  setTimeout(()=>document.getElementById("flag-note").focus(),100);
+}
+function closeFlag(){document.getElementById("flag-modal").classList.remove("open");}
+function saveFlag(){
+  const note=document.getElementById("flag-note").value.trim();
+  const flags=getFlags();
+  flags[_flagKey]={title:_flagTitle,note,ts:new Date().toISOString(),mode,sub,paper};
+  saveFlags(flags);
+  closeFlag();
+  renderMain();
+  updateFab();
+}
+function flagBtn(subject,paper,title){
+  const k=flagKey(subject,paper,title);
+  const f=isFlagged(k);
+  return `<button class="b-flag${f?" flagged":""}" onclick='openFlag(${JSON.stringify(subject)},${JSON.stringify(paper)},${JSON.stringify(title)})'>${f?"&#9873; Noted":"&#9873; Flag"}</button>`;
+}
+function updateFab(){
+  const n=Object.keys(getFlags()).length;
+  const fab=document.getElementById("notes-fab");
+  fab.style.display=n?"block":"none";
+  fab.textContent=`\u{1F4CB} My Notes (${n})`;
+}
+function openNotes(){
+  renderNotesList();
+  document.getElementById("notes-overlay").style.display="block";
+}
+function closeNotes(){document.getElementById("notes-overlay").style.display="none";}
+function renderNotesList(){
+  const flags=getFlags();
+  const keys=Object.keys(flags);
+  const box=document.getElementById("notes-list");
+  if(!keys.length){box.innerHTML='<div class="nempty">No notes yet. Tap the flag button on any resource.</div>';return;}
+  box.innerHTML=keys.map(k=>{
+    const f=flags[k];
+    const d=new Date(f.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    return `<div class="nitem">
+      <div class="nitem-title">${f.title}</div>
+      ${f.note?`<div class="nitem-note">${f.note}</div>`:""}
+      <div class="nitem-meta">${d}</div>
+      <button class="nedit" onclick='openFlag(${JSON.stringify(f.sub||"")},${JSON.stringify(f.paper||"")},${JSON.stringify(f.title)});closeNotes()'>Edit</button>
+      <button class="ndel" onclick='deleteFlag(${JSON.stringify(k)})'>Remove</button>
+    </div>`;
+  }).join("");
+}
+function deleteFlag(k){
+  const flags=getFlags(); delete flags[k]; saveFlags(flags);
+  renderNotesList(); updateFab();
+}
+function clearAll(){
+  if(!confirm("Clear all notes?")) return;
+  localStorage.removeItem(STORE_KEY);
+  renderNotesList(); updateFab(); closeNotes();
+}
+function copyNotes(){
+  const flags=getFlags();
+  const lines=Object.values(flags).map(f=>{
+    const d=new Date(f.ts).toLocaleDateString("en-GB");
+    return `${f.title}${f.note?" - "+f.note:""} (${d})`;
+  });
+  navigator.clipboard.writeText(lines.join("\n")).then(()=>alert("Copied "+lines.length+" notes to clipboard."));
+}
+
 function render(){
   const main=document.getElementById("main");
   const tabs=document.getElementById("tabs");
@@ -128,16 +257,6 @@ function render(){
 
 function setSub(s){sub=s;renderMain();}
 function setPaper(p){paper=p;renderMain();}
-function renderMain(){
-  if(mode=="alevel") renderAlevel();
-  else if(mode=="gcse") renderGcse();
-  else renderPrimary();
-  document.querySelectorAll(".tab").forEach(b=>{
-    if(SUBJS.includes(b.textContent)) b.classList.toggle("on",b.textContent==sub);
-    if(PAPERS.includes(b.textContent)) b.classList.toggle("on",b.textContent==paper);
-    if(["KS1","KS2"].includes(b.textContent)) b.classList.toggle("on",b.textContent==sub);
-  });
-}
 
 function mcqKey(subject,title){
   const s=subject.toLowerCase();
@@ -177,6 +296,7 @@ function renderAlevel(){
           ${btn("Resources","b-drive",r.drive)}
           ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},"")'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
           ${r.video?btn("Video","b-vid",r.video):''}
+          ${flagBtn(r.subject,"",r.title)}
         </div></div></div>`;
     }).join("");
     return `<div class="group"><h2>${m}</h2>${items}</div>`;
@@ -194,6 +314,7 @@ function renderGcse(){
       <div class="acts">
         ${btn("Resources","b-drive",r.drive)}
         ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},${JSON.stringify(r.paper)})'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
+        ${flagBtn(r.subject,r.paper,r.title)}
       </div></div></div>`;
   }).join("");
 }
@@ -209,6 +330,7 @@ function renderPrimary(){
         <div class="acts">
           ${btn("Drive Folder","b-drive",r.drive)}
           ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">Video coming</span>'}
+          ${flagBtn("KS1","",r.title)}
         </div></div></div>`).join("")+"</div>";
   } else {
     const rows=(D.ks2||[]).filter(r=>!q||(r.title+" "+r.year+" "+r.type).toLowerCase().includes(q));
@@ -222,6 +344,7 @@ function renderPrimary(){
           <div class="acts">
             ${btn("View PDF","b-drive",r.drive)}
             ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">No video</span>'}
+            ${flagBtn("KS2","",r.title)}
           </div></div></div>`).join("");
       return `<div class="group"><h2>${yr}</h2>${items}</div>`;
     }).join("");
@@ -264,9 +387,22 @@ function closeQuiz(){document.getElementById("quiz-overlay").style.display="none
 // Search
 document.getElementById("q").oninput=e=>{q=e.target.value.toLowerCase();renderMain();};
 
+function renderMain(){
+  if(mode=="alevel") renderAlevel();
+  else if(mode=="gcse") renderGcse();
+  else renderPrimary();
+  document.querySelectorAll(".tab").forEach(b=>{
+    if(SUBJS.includes(b.textContent)) b.classList.toggle("on",b.textContent==sub);
+    if(PAPERS.includes(b.textContent)) b.classList.toggle("on",b.textContent==paper);
+    if(["KS1","KS2"].includes(b.textContent)) b.classList.toggle("on",b.textContent==sub);
+  });
+  updateFab();
+}
+
 // Init
 loadData().then(data=>{
   D=data;
+  updateFab();
   // mode nav
   const nav=document.getElementById("modenav");
   MODES.forEach(m=>{
