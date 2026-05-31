@@ -103,6 +103,7 @@ footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
 <div id="flag-modal">
   <div class="fbox">
     <h3 id="flag-modal-title"></h3>
+    <input id="flag-reviewer" placeholder="Your name (Brenda / Divine)" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;margin-bottom:8px;font-family:inherit">
     <textarea id="flag-note" placeholder="What did you notice? (optional)"></textarea>
     <div class="fbox-acts">
       <button class="fcancel" onclick="closeFlag()">Cancel</button>
@@ -152,32 +153,45 @@ function btn(label,cls,href){
              :`<span class="b-soon">${label}</span>`;
 }
 
-// Flags / notes
-const STORE_KEY="adsci_notes";
-function getFlags(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||"{}");}catch{return {};}}
-function saveFlags(f){localStorage.setItem(STORE_KEY,JSON.stringify(f));}
-function flagKey(subject,paper,title){return [subject,paper,title].filter(Boolean).join("|");}
-function isFlagged(k){return !!getFlags()[k];}
+// Flags / notes - shared Google Sheet backend
+// Replace SCRIPT_URL with your deployed Apps Script web app URL
+const SCRIPT_URL = "PASTE_SCRIPT_URL_HERE";
+let _flags = {};  // local cache, loaded on init
 
-let _flagKey="", _flagTitle="";
+function flagKey(subject,paper,title){return [subject,paper,title].filter(Boolean).join("|");}
+function isFlagged(k){return !!_flags[k];}
+
+async function loadFlags(){
+  if(!SCRIPT_URL||SCRIPT_URL==="PASTE_SCRIPT_URL_HERE") return;
+  try{
+    const r=await fetch(SCRIPT_URL);
+    _flags=await r.json();
+  } catch(e){ console.warn("Could not load flags",e); }
+  updateFab();
+}
+
+let _flagKey="", _flagTitle="", _flagPhase="";
 function openFlag(subject,paper,title){
   _flagKey=flagKey(subject,paper,title);
-  _flagTitle=title;
+  _flagTitle=title; _flagPhase=subject;
   document.getElementById("flag-modal-title").textContent="Note: "+title;
-  const existing=getFlags()[_flagKey];
+  const existing=_flags[_flagKey];
   document.getElementById("flag-note").value=existing?existing.note:"";
+  document.getElementById("flag-reviewer").value=existing?existing.reviewer:"";
   document.getElementById("flag-modal").classList.add("open");
   setTimeout(()=>document.getElementById("flag-note").focus(),100);
 }
 function closeFlag(){document.getElementById("flag-modal").classList.remove("open");}
-function saveFlag(){
+async function saveFlag(){
   const note=document.getElementById("flag-note").value.trim();
-  const flags=getFlags();
-  flags[_flagKey]={title:_flagTitle,note,ts:new Date().toISOString(),mode,sub,paper};
-  saveFlags(flags);
-  closeFlag();
-  renderMain();
-  updateFab();
+  const reviewer=document.getElementById("flag-reviewer").value.trim()||"Anonymous";
+  const entry={key:_flagKey,title:_flagTitle,note,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
+  _flags[_flagKey]=entry;   // optimistic update
+  closeFlag(); renderMain(); updateFab();
+  if(SCRIPT_URL&&SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE"){
+    try{ await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(entry)}); }
+    catch(e){ console.warn("Flag save failed",e); }
+  }
 }
 function flagBtn(subject,paper,title){
   const k=flagKey(subject,paper,title);
@@ -185,47 +199,50 @@ function flagBtn(subject,paper,title){
   return `<button class="b-flag${f?" flagged":""}" onclick='openFlag(${JSON.stringify(subject)},${JSON.stringify(paper)},${JSON.stringify(title)})'>${f?"&#9873; Noted":"&#9873; Flag"}</button>`;
 }
 function updateFab(){
-  const n=Object.keys(getFlags()).length;
+  const n=Object.keys(_flags).length;
   const fab=document.getElementById("notes-fab");
   fab.style.display=n?"block":"none";
-  fab.textContent=`\u{1F4CB} My Notes (${n})`;
+  fab.textContent=`\u{1F4CB} Shared Notes (${n})`;
 }
 function openNotes(){
-  renderNotesList();
+  loadFlags().then(renderNotesList);
   document.getElementById("notes-overlay").style.display="block";
 }
 function closeNotes(){document.getElementById("notes-overlay").style.display="none";}
 function renderNotesList(){
-  const flags=getFlags();
-  const keys=Object.keys(flags);
+  const keys=Object.keys(_flags);
   const box=document.getElementById("notes-list");
   if(!keys.length){box.innerHTML='<div class="nempty">No notes yet. Tap the flag button on any resource.</div>';return;}
   box.innerHTML=keys.map(k=>{
-    const f=flags[k];
-    const d=new Date(f.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+    const f=_flags[k];
+    const d=f.ts?new Date(f.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
     return `<div class="nitem">
       <div class="nitem-title">${f.title}</div>
       ${f.note?`<div class="nitem-note">${f.note}</div>`:""}
-      <div class="nitem-meta">${d}</div>
-      <button class="nedit" onclick='openFlag(${JSON.stringify(f.sub||"")},${JSON.stringify(f.paper||"")},${JSON.stringify(f.title)});closeNotes()'>Edit</button>
+      <div class="nitem-meta">${f.reviewer||""} ${d}</div>
+      <button class="nedit" onclick='openFlag(${JSON.stringify(f.phase||"")},${JSON.stringify("")},${JSON.stringify(f.title)});closeNotes()'>Edit</button>
       <button class="ndel" onclick='deleteFlag(${JSON.stringify(k)})'>Remove</button>
     </div>`;
   }).join("");
 }
-function deleteFlag(k){
-  const flags=getFlags(); delete flags[k]; saveFlags(flags);
+async function deleteFlag(k){
+  delete _flags[k];
   renderNotesList(); updateFab();
+  if(SCRIPT_URL&&SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE"){
+    try{ await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify({action:"delete",key:k})}); }
+    catch(e){ console.warn("Delete failed",e); }
+  }
 }
 function clearAll(){
-  if(!confirm("Clear all notes?")) return;
-  localStorage.removeItem(STORE_KEY);
-  renderNotesList(); updateFab(); closeNotes();
+  if(!confirm("Clear all notes from the shared sheet?")) return;
+  const keys=Object.keys(_flags);
+  keys.forEach(k=>deleteFlag(k));
+  closeNotes();
 }
 function copyNotes(){
-  const flags=getFlags();
-  const lines=Object.values(flags).map(f=>{
-    const d=new Date(f.ts).toLocaleDateString("en-GB");
-    return `${f.title}${f.note?" - "+f.note:""} (${d})`;
+  const lines=Object.values(_flags).map(f=>{
+    const d=f.ts?new Date(f.ts).toLocaleDateString("en-GB"):"";
+    return `${f.reviewer?f.reviewer+": ":""}${f.title}${f.note?" - "+f.note:""} (${d})`;
   });
   navigator.clipboard.writeText(lines.join("\n")).then(()=>alert("Copied "+lines.length+" notes to clipboard."));
 }
@@ -449,6 +466,7 @@ function renderMain(){
 // Init
 loadData().then(data=>{
   D=data;
+  loadFlags();
   updateFab();
   // mode nav
   const nav=document.getElementById("modenav");
