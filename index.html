@@ -147,8 +147,8 @@ function mcqKey(subject,title){
 function getMcqs(subject,title,paper){
   let bank=[];
   if(mode=="alevel"){
-    const key=`alevel_${subject.toLowerCase().slice(0,3)}`;
-    bank=D.mcq[key]||[];
+    const keymap={"Biology":"alevel_bio","Chemistry":"alevel_chem","Physics":"alevel_phys"};
+    bank=D.mcq[keymap[subject]]||[];
   } else {
     bank=(D.mcq.gcse||[]).filter(q=>q.subj==subject&&q.paper=="Paper "+paper.slice(1));
   }
