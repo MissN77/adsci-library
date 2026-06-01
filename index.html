@@ -41,6 +41,7 @@ a.btn{text-decoration:none;padding:7px 11px;border-radius:8px;font-size:12.5px;f
 .pill.p-drive{background:var(--teal);color:#fff;border-color:var(--teal)}
 .pill.p-vid{background:var(--dark);color:#fff;border-color:var(--dark)}
 .pill.p-ws{background:var(--coral);color:#fff;border-color:var(--coral)}
+.pill.p-slides{background:#7b68ee;color:#fff;border-color:#7b68ee}
 .pill.p-soon{background:#f0ece4;color:#aaa;border-color:#e0d9d0}
 /* Quiz */
 #quiz-overlay{display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto}
@@ -514,7 +515,9 @@ function renderAlevel(){
       return `<div class="card"><div class="ctop">
         <div class="cmeta"><div class="ref">${r.ref}</div><div class="ctitle">${r.title}</div></div>
         <div class="acts">
-          ${pill("Resources","p-drive",r.drive,r.subject,"",r.title,"slides")}
+          ${pill("Poster","p-drive",r.drive,r.subject,"",r.title,"poster")}
+          ${pill("Worksheets","p-ws",r.drive,r.subject,"",r.title,"worksheets")}
+          ${pill("Slides","p-slides",r.drive,r.subject,"",r.title,"slides")}
           ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},"")'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
           ${r.video?pill("Video","p-vid",r.video,r.subject,"",r.title,"video"):""}
         </div></div></div>`;
