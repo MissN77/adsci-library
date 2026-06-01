@@ -132,7 +132,15 @@ footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
   <div class="fbox">
     <h3 id="flag-modal-title"></h3>
     <input id="flag-reviewer" placeholder="Your name (Brenda / Divine)" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;margin-bottom:8px;font-family:inherit">
-    <textarea id="flag-note" placeholder="What did you notice? (optional)"></textarea>
+    <select id="flag-category" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;margin-bottom:8px;font-family:inherit;background:#fff;color:var(--dark)">
+      <option value="">Category (optional)</option>
+      <option value="Visual">Visual - layout, images, labels look off</option>
+      <option value="Content">Content - wrong info, wrong label, wrong age group</option>
+      <option value="Video">Video - audio, pacing, wrong video, branding</option>
+      <option value="Language">Language - spelling, too hard/easy, unclear</option>
+      <option value="Missing">Missing - blank page, cut off, incomplete</option>
+    </select>
+    <textarea id="flag-note" placeholder="Details (optional) e.g. page 2, timestamp 0:34"></textarea>
     <div class="fbox-acts">
       <button class="fcancel" onclick="closeFlag()">Cancel</button>
       <button class="fsave" onclick="saveFlag()">Save note</button>
@@ -230,14 +238,16 @@ function openFlag(subject,paper,title){
   const existing=_flags[_flagKey];
   document.getElementById("flag-note").value=existing?existing.note:"";
   document.getElementById("flag-reviewer").value=existing?existing.reviewer:"";
+  document.getElementById("flag-category").value=existing?existing.category||"":"";
   document.getElementById("flag-modal").classList.add("open");
-  setTimeout(()=>document.getElementById("flag-note").focus(),100);
+  setTimeout(()=>document.getElementById("flag-category").focus(),100);
 }
 function closeFlag(){document.getElementById("flag-modal").classList.remove("open");}
 async function saveFlag(){
   const note=document.getElementById("flag-note").value.trim();
   const reviewer=document.getElementById("flag-reviewer").value.trim()||"Anonymous";
-  const entry={key:_flagKey,title:_flagTitle,note,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
+  const category=document.getElementById("flag-category").value;
+  const entry={key:_flagKey,title:_flagTitle,note,category,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
   _flags[_flagKey]=entry;   // optimistic update
   closeFlag(); renderMain(); updateFab();
   if(SCRIPT_URL&&SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE"){
@@ -304,7 +314,10 @@ function showReviewItem(){
   }
   box.innerHTML=`
     <div class="rcard">
-      ${rtype?`<div class="rtype">${rtype}</div>`:""}
+      <div style="margin-bottom:6px">
+        ${rtype?`<span class="rtype">${rtype}</span>`:""}
+        ${f.category?`<span class="rtype" style="background:var(--dark);margin-left:4px">${f.category}</span>`:""}
+      </div>
       <div class="rtitle">${rtitle}</div>
       <div class="rmeta">Flagged by ${f.reviewer||"Anonymous"} &middot; ${d} &middot; ${phase}</div>
       ${f.note?`<div class="rnote">${f.note}</div>`:'<div class="rnote" style="color:#bbb;font-style:italic">No note added</div>'}
@@ -343,7 +356,7 @@ function renderNotesList(){
     const f=_flags[k];
     const d=f.ts?new Date(f.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
     return `<div class="nitem">
-      <div class="nitem-title">${(()=>{const p=f.title.split("|");const type={"pdf":"PDF","video":"Video","slides":"Slides","folder":"Folder","ws":"Worksheet"}[p[1]]||p[1]||"";return (type?`<span style="background:var(--gold);border-radius:4px;padding:1px 6px;font-size:11px;margin-right:6px">${type}</span>`:"")+p[0];})()}</div>
+      <div class="nitem-title">${(()=>{const p=f.title.split("|");const type={"pdf":"PDF","video":"Video","slides":"Slides","folder":"Folder","ws":"Worksheet"}[p[1]]||p[1]||"";const cat=f.category||"";const catCol={"Visual":"#D4C2DF","Content":"#F5A898","Video":"#1B4D5C","Language":"#B8D8D0","Missing":"#E8D48A"}[cat]||"#eee";const catTxt={"Video":"#fff","Content":"#fff"}[cat]||"var(--dark)";return (type?`<span style="background:var(--gold);border-radius:4px;padding:1px 6px;font-size:11px;margin-right:4px">${type}</span>`:"")+(cat?`<span style="background:${catCol};color:${catTxt};border-radius:4px;padding:1px 6px;font-size:11px;margin-right:4px">${cat}</span>`:"")+p[0];})()}</div>
       ${f.note?`<div class="nitem-note">${f.note}</div>`:'<div class="nitem-note" style="color:#bbb;font-style:italic">No note added</div>'}
       <div class="nitem-meta">${f.reviewer||"Anonymous"} &middot; ${d} &middot; ${f.phase||""}</div>
       <button class="nedit" onclick='openFlag(${JSON.stringify(f.phase||"")},${JSON.stringify("")},${JSON.stringify(f.title)});closeNotes()'>Edit</button>

@@ -10,7 +10,7 @@ function getSheet() {
   let sheet = ss.getSheetByName(TAB);
   if (!sheet) {
     sheet = ss.insertSheet(TAB);
-    sheet.appendRow(["Key", "Title", "Note", "Phase", "Reviewer", "Timestamp"]);
+    sheet.appendRow(["Key", "Title", "Category", "Note", "Phase", "Reviewer", "Timestamp"]);
     sheet.setFrozenRows(1);
   }
   return sheet;
@@ -25,10 +25,11 @@ function doGet(e) {
     if (key) {
       flags[key] = {
         title:    rows[i][1],
-        note:     rows[i][2],
-        phase:    rows[i][3],
-        reviewer: rows[i][4],
-        ts:       rows[i][5]
+        category: rows[i][2],
+        note:     rows[i][3],
+        phase:    rows[i][4],
+        reviewer: rows[i][5],
+        ts:       rows[i][6]
       };
     }
   }
@@ -60,7 +61,7 @@ function doPost(e) {
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.key) { found = i + 1; break; }
   }
-  const rowData = [data.key, data.title, data.note, data.phase, data.reviewer, data.ts];
+  const rowData = [data.key, data.title, data.category||"", data.note, data.phase, data.reviewer, data.ts];
   if (found > 0) {
     sheet.getRange(found, 1, 1, 6).setValues([rowData]);
   } else {
