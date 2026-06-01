@@ -1,5 +1,5 @@
 // Service worker: cache the app shell for offline use
-const V = "adsci-v1";
+const V = "adsci-v2";
 const SHELL = ["/adsci-library/", "/adsci-library/index.html"];
 
 self.addEventListener("install", e => {
