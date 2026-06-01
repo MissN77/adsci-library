@@ -33,6 +33,14 @@ a.btn{text-decoration:none;padding:7px 11px;border-radius:8px;font-size:12.5px;f
 .b-vid{background:var(--dark);color:#fff}
 .b-mcq{background:var(--gold);color:var(--dark)}
 .b-soon{background:#f0ece4;color:#aaa;padding:7px 11px;border-radius:8px;font-size:12.5px;font-weight:700;display:inline-block}
+/* flaggable pill: action + flag tab fused */
+.pill{display:inline-flex;border-radius:8px;overflow:hidden;border:1px solid transparent}
+.pill a,.pill span.pa{text-decoration:none;padding:7px 10px;font-size:12.5px;font-weight:700;display:inline-block}
+.pill .pf{padding:7px 8px;cursor:pointer;border:none;font-size:12px;border-left:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.12);color:inherit;display:inline-block}
+.pill .pf.on{background:var(--red);color:#fff}
+.pill.p-drive{background:var(--teal);color:#fff;border-color:var(--teal)}
+.pill.p-vid{background:var(--dark);color:#fff;border-color:var(--dark)}
+.pill.p-soon{background:#f0ece4;color:#aaa;border-color:#e0d9d0}
 /* Quiz */
 #quiz-overlay{display:none;position:fixed;inset:0;background:var(--cream);z-index:200;overflow-y:auto}
 .qheader{background:var(--dark);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0}
@@ -154,6 +162,17 @@ function btn(label,cls,href){
   return href?`<a class="btn ${cls}" href="${href}" target="_blank" rel="noopener">${label}</a>`
              :`<span class="b-soon">${label}</span>`;
 }
+// pill: action button + inline flag tab fused together
+function pill(label, pillcls, href, flagSubject, flagRef, flagTitle, resourceType){
+  const fk = flagKey(flagSubject, flagRef, flagTitle + "|" + resourceType);
+  const flagged = isFlagged(fk);
+  const action = href
+    ? `<a class="pa" href="${href}" target="_blank" rel="noopener">${label}</a>`
+    : `<span class="pa" style="color:#aaa">${label}</span>`;
+  const ft = `<button class="pf${flagged?" on":""}" title="Flag this ${resourceType}" onclick='openFlag(${JSON.stringify(flagSubject)},${JSON.stringify(flagRef)},${JSON.stringify(flagTitle+"|"+resourceType)})'>&#9873;</button>`;
+  return `<span class="pill ${pillcls}">${action}${ft}</span>`;
+}
+function flagBtn(subject,paper,title){return "";}  // replaced by pill()
 
 // Flags / notes - shared Google Sheet backend
 // Replace SCRIPT_URL with your deployed Apps Script web app URL
@@ -175,8 +194,11 @@ async function loadFlags(){
 let _flagKey="", _flagTitle="", _flagPhase="";
 function openFlag(subject,paper,title){
   _flagKey=flagKey(subject,paper,title);
+  // title may include "|pdf" "|video" "|slides" suffix added by pill()
+  const parts=title.split("|"); const rtype=parts[1]||""; const rtitle=parts[0];
   _flagTitle=title; _flagPhase=subject;
-  document.getElementById("flag-modal-title").textContent="Note: "+title;
+  const typeLabel={"pdf":"PDF","video":"Video","slides":"Slides","folder":"Folder","ws":"Worksheet"}[rtype]||rtype;
+  document.getElementById("flag-modal-title").textContent=(typeLabel?typeLabel+": ":"")+rtitle;
   const existing=_flags[_flagKey];
   document.getElementById("flag-note").value=existing?existing.note:"";
   document.getElementById("flag-reviewer").value=existing?existing.reviewer:"";
@@ -219,9 +241,9 @@ function renderNotesList(){
     const f=_flags[k];
     const d=f.ts?new Date(f.ts).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}):"";
     return `<div class="nitem">
-      <div class="nitem-title">${f.title}</div>
-      ${f.note?`<div class="nitem-note">${f.note}</div>`:""}
-      <div class="nitem-meta">${f.reviewer||""} ${d}</div>
+      <div class="nitem-title">${(()=>{const p=f.title.split("|");const type={"pdf":"PDF","video":"Video","slides":"Slides","folder":"Folder","ws":"Worksheet"}[p[1]]||p[1]||"";return (type?`<span style="background:var(--gold);border-radius:4px;padding:1px 6px;font-size:11px;margin-right:6px">${type}</span>`:"")+p[0];})()}</div>
+      ${f.note?`<div class="nitem-note">${f.note}</div>`:'<div class="nitem-note" style="color:#bbb;font-style:italic">No note added</div>'}
+      <div class="nitem-meta">${f.reviewer||"Anonymous"} &middot; ${d} &middot; ${f.phase||""}</div>
       <button class="nedit" onclick='openFlag(${JSON.stringify(f.phase||"")},${JSON.stringify("")},${JSON.stringify(f.title)});closeNotes()'>Edit</button>
       <button class="ndel" onclick='deleteFlag(${JSON.stringify(k)})'>Remove</button>
     </div>`;
@@ -376,10 +398,9 @@ function renderAlevel(){
       return `<div class="card"><div class="ctop">
         <div class="cmeta"><div class="ref">${r.ref}</div><div class="ctitle">${r.title}</div></div>
         <div class="acts">
-          ${btn("Resources","b-drive",r.drive)}
+          ${pill("Resources","p-drive",r.drive,r.subject,"",r.title,"slides")}
           ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},"")'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
-          ${r.video?btn("Video","b-vid",r.video):''}
-          ${flagBtn(r.subject,"",r.title)}
+          ${r.video?pill("Video","p-vid",r.video,r.subject,"",r.title,"video"):""}
         </div></div></div>`;
     }).join("");
     return `<div class="group"><h2>${m}</h2>${items}</div>`;
@@ -395,9 +416,8 @@ function renderGcse(){
     return `<div class="card"><div class="ctop">
       <div class="cmeta"><div class="ctitle">${r.title}</div></div>
       <div class="acts">
-        ${btn("Resources","b-drive",r.drive)}
+        ${pill("Resources","p-drive",r.drive,r.subject,r.paper,r.title,"slides")}
         ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},${JSON.stringify(r.paper)})'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
-        ${flagBtn(r.subject,r.paper,r.title)}
       </div></div></div>`;
   }).join("");
 }
@@ -415,9 +435,8 @@ function renderPrimary(){
           <span class="badge" style="background:var(--mint)">L${r.lesson}</span>
           <div class="cmeta"><div class="ctitle">${r.title}</div></div>
           <div class="acts">
-            ${btn("Resources","b-drive",r.drive)}
-            ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">No video</span>'}
-            ${flagBtn("KS3",uref,r.title)}
+            ${pill("Resources","p-drive",r.drive,"KS3",uref,r.title,"slides")}
+            ${r.video?pill("Watch","p-vid",r.video,"KS3",uref,r.title,"video"):'<span class="b-soon">No video</span>'}
           </div></div></div>`).join("")+"</div>";
     }).join("");
   } else if(sub=="EYFS"){
@@ -428,9 +447,8 @@ function renderPrimary(){
         <span class="badge" style="background:#D4C2DF;color:var(--dark)">EYFS</span>
         <div class="cmeta"><div class="ctitle">${r.title}</div></div>
         <div class="acts">
-          ${btn("View PDF","b-drive",r.drive)}
-          <span class="b-soon">Video: pending review</span>
-          ${flagBtn("EYFS","",r.title)}
+          ${pill("View PDF","p-drive",r.drive,"EYFS","",r.title,"pdf")}
+          ${r.video?pill("Watch","p-vid",r.video,"EYFS","",r.title,"video"):pill("Watch","p-vid","https://drive.google.com/drive/folders/1PVEV9seuXHhV-vnSi7EF03lGhbYvz20w","EYFS","",r.title,"video")}
         </div></div></div>`).join("")+"</div>";
   } else if(sub=="KS1"){
     const units=[...new Set((D.ks1||[]).map(r=>r.title))];
@@ -444,9 +462,8 @@ function renderPrimary(){
         <span class="badge ks1">${r.year}</span>
         <div class="cmeta"><div class="ctitle">${r.title}</div></div>
         <div class="acts">
-          ${btn("Drive Folder","b-drive",r.drive)}
-          ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">Video coming</span>'}
-          ${flagBtn("KS1","unit",r.title)}
+          ${pill("Folder","p-drive",r.drive,"KS1","unit",r.title,"folder")}
+          ${r.video?pill("Watch","p-vid",r.video,"KS1","unit",r.title,"video"):pill("Watch","p-vid","https://drive.google.com/drive/folders/1wwTL6rWDOClmkA7n6nN131-4LzwveNzL","KS1","unit",r.title,"video")}
         </div></div></div>`).join("")+"</div>":"";
     // worksheets section grouped by year
     const wsYrs=[...new Set(wsRows.map(r=>r.year))].sort();
@@ -457,8 +474,7 @@ function renderPrimary(){
           <span class="badge ks1">${r.unit}</span>
           <div class="cmeta"><div class="ctitle">${r.title}</div></div>
           <div class="acts">
-            ${btn("View PDF","b-drive",r.drive)}
-            ${flagBtn("KS1","ws",r.title)}
+            ${pill("View PDF","p-drive",r.drive,"KS1","ws",r.title,"pdf")}
           </div></div></div>`).join("")+"</div>";
     }).join("");
     document.getElementById("main").innerHTML=overviewHtml+wsHtml;
@@ -472,9 +488,8 @@ function renderPrimary(){
           <span class="badge${r.type=="Workbook"?" wb":""}">${r.type}</span>
           <div class="cmeta"><div class="ctitle">${r.title}</div></div>
           <div class="acts">
-            ${btn("View PDF","b-drive",r.drive)}
-            ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">No video</span>'}
-            ${flagBtn("KS2","",r.title)}
+            ${pill("View PDF","p-drive",r.drive,"KS2","",r.title,"pdf")}
+            ${r.video?pill("Watch","p-vid",r.video,"KS2","",r.title,"video"):'<span class="b-soon">No video</span>'}
           </div></div></div>`).join("");
       return `<div class="group"><h2>${yr}</h2>${items}</div>`;
     }).join("");
@@ -528,9 +543,8 @@ function renderElc(){
         <span class="badge" style="background:var(--lavender,#D4C2DF);color:var(--dark)">P${r.part}</span>
         <div class="cmeta"><div class="ctitle">${r.title}</div></div>
         <div class="acts">
-          ${btn("Resources","b-drive",r.drive)}
-          ${r.video?btn("Watch","b-vid",r.video):'<span class="b-soon">No video</span>'}
-          ${flagBtn("ELC",ref,r.title)}
+          ${pill("Resources","p-drive",r.drive,"ELC",ref,r.title,"slides")}
+          ${r.video?pill("Watch","p-vid",r.video,"ELC",ref,r.title,"video"):'<span class="b-soon">No video</span>'}
         </div></div></div>`).join("")+"</div>";
   }).join("");
 }
