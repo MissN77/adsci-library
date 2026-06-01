@@ -1,0 +1,9 @@
+{
+  "name": "AdSci Resource Library",
+  "short_name": "AdSci",
+  "start_url": "/adsci-library/",
+  "display": "standalone",
+  "background_color": "#FAF5EE",
+  "theme_color": "#1B4D5C",
+  "icons": []
+}

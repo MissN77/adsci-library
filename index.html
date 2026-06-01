@@ -1,6 +1,7 @@
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="/adsci-library/manifest.json">
 <title>Advisory Science Resource Library</title>
 <style>
 :root{--teal:#1A8A7D;--dark:#1B4D5C;--coral:#E07a5f;--cream:#FAF5EE;--gold:#E8D48A;--mint:#B8D8D0;--line:#e7ded2;--green:#2e7d57;--red:#c0392b}
@@ -247,6 +248,67 @@ function copyNotes(){
   });
   navigator.clipboard.writeText(lines.join("\n")).then(()=>alert("Copied "+lines.length+" notes to clipboard."));
 }
+
+// Offline queue: flags that couldn't reach the sheet yet
+const Q_KEY = "adsci_queue";
+function getQueue(){try{return JSON.parse(localStorage.getItem(Q_KEY)||"[]");}catch{return [];}}
+function saveQueue(q){localStorage.setItem(Q_KEY,JSON.stringify(q));}
+
+async function syncQueue(){
+  const queue = getQueue();
+  if(!queue.length) return;
+  const btn = document.getElementById("sync-btn");
+  if(btn) btn.textContent = "Syncing...";
+  let remaining = [];
+  for(const item of queue){
+    try{
+      await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(item)});
+    } catch(e){
+      remaining.push(item);  // keep if still offline
+    }
+  }
+  saveQueue(remaining);
+  updateSyncBtn();
+  if(!remaining.length) await loadFlags().then(renderNotesList);
+}
+
+function updateSyncBtn(){
+  const n = getQueue().length;
+  let btn = document.getElementById("sync-btn");
+  if(!btn){
+    btn = document.createElement("button");
+    btn.id = "sync-btn";
+    btn.style.cssText = "position:fixed;bottom:80px;right:20px;background:var(--dark);color:#fff;border:0;border-radius:50px;padding:10px 16px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(0,0,0,.2);z-index:300;display:none";
+    btn.onclick = syncQueue;
+    document.body.appendChild(btn);
+  }
+  btn.style.display = n ? "block" : "none";
+  btn.textContent = n ? `Sync ${n} flag${n>1?"s":""} now` : "";
+}
+
+// override saveFlag to queue when offline
+const _origSaveFlag = saveFlag;
+async function saveFlag(){
+  const note=document.getElementById("flag-note").value.trim();
+  const reviewer=document.getElementById("flag-reviewer").value.trim()||"Anonymous";
+  const entry={key:_flagKey,title:_flagTitle,note,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
+  _flags[_flagKey]=entry;
+  closeFlag(); renderMain(); updateFab();
+  if(navigator.onLine && SCRIPT_URL && SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE"){
+    try{
+      await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(entry)});
+      return;
+    } catch(e){}
+  }
+  // offline: queue it
+  const q = getQueue().filter(i=>i.key!==entry.key);
+  q.push(entry);
+  saveQueue(q);
+  updateSyncBtn();
+}
+
+window.addEventListener("online", ()=>{ updateSyncBtn(); syncQueue(); });
+window.addEventListener("offline", ()=>{ updateSyncBtn(); });
 
 function render(){
   const main=document.getElementById("main");
@@ -501,5 +563,10 @@ loadData().then(data=>{
     nav.appendChild(b);
   });
   render();
+  updateSyncBtn();
 });
+// register service worker for offline use
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("/adsci-library/sw.js");
+}
 </script></body></html>
