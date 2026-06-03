@@ -1,5 +1,5 @@
 // Service worker: cache the app shell for offline use
-const V = "adsci-v6";
+const V = "adsci-v7";
 const SHELL = ["/adsci-library/", "/adsci-library/index.html"];
 
 self.addEventListener("install", e => {
@@ -17,8 +17,10 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   // network first for the flags script (always want fresh flags)
   if (e.request.url.includes("script.google.com")) return;
+  // Always revalidate against the network (bypass the browser HTTP cache) so a
+  // fresh deploy is never hidden by a stale cached copy. Fall back to cache only offline.
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, {cache: "reload"}).then(r => {
       // update cache with fresh copy
       const copy = r.clone();
       caches.open(V).then(c => c.put(e.request, copy));
