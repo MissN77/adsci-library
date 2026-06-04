@@ -218,6 +218,7 @@ let D={}, mode="alevel", sub="Biology", paper="P1", q="";
 const MODES=[
   {k:"alevel",label:"A Level"},
   {k:"gcse",label:"GCSE"},
+  {k:"ks3",label:"KS3"},
   {k:"primary",label:"Primary"},
   {k:"elc",label:"ELC"}
 ];
@@ -548,9 +549,13 @@ function render(){
   } else if(mode=="elc"){
     tabs.innerHTML="";
     renderElc();
+  } else if(mode=="ks3"){
+    sub="KS3";
+    tabs.innerHTML="";
+    renderPrimary();
   } else {
-    sub=sub||"KS2";
-    tabs.innerHTML=["KS2","KS3","KS1","EYFS"].map(s=>`<button class="tab${s==sub?" on":""}" onclick="setSub('${s}')">${s}</button>`).join("");
+    sub=(sub&&sub!="KS3")?sub:"KS2";
+    tabs.innerHTML=["KS2","KS1","EYFS"].map(s=>`<button class="tab${s==sub?" on":""}" onclick="setSub('${s}')">${s}</button>`).join("");
     renderPrimary();
   }
   updatePickBar();
@@ -766,7 +771,7 @@ loadData().then(data=>{
     const b=document.createElement("button");
     b.className="mnbtn"+(m.k==mode?" on":"");
     b.dataset.m=m.k; b.textContent=m.label;
-    b.onclick=()=>{mode=m.k;sub=mode=="primary"?"KS2":"Biology";render();};
+    b.onclick=()=>{mode=m.k;sub=mode=="primary"?"KS2":mode=="ks3"?"KS3":"Biology";render();};
     nav.appendChild(b);
   });
   render();
