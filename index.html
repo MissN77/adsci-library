@@ -116,6 +116,15 @@ footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
 #pick-bar .pbcopy{background:var(--gold);color:var(--dark)}
 #pick-bar .pbopen{background:var(--mint);color:var(--dark)}
 #pick-bar .pbclear{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.4)}
+#viewer-overlay{display:none;position:fixed;inset:0;background:var(--cream);z-index:450;flex-direction:column}
+#viewer-overlay.open{display:flex}
+.vhead{display:flex;align-items:center;gap:8px;background:var(--dark);color:#fff;padding:10px 12px;flex-wrap:wrap}
+.vhead .vtitle{flex:1;font-weight:700;font-size:14px;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vhead button,.vhead a{border:0;border-radius:8px;padding:8px 12px;font-weight:700;font-size:13px;cursor:pointer;text-decoration:none}
+.vhead .vback{background:rgba(255,255,255,.15);color:#fff}
+.vhead .vflag{background:var(--gold);color:var(--dark)}
+.vhead .vopen{background:var(--mint);color:var(--dark)}
+#viewer-frame{flex:1;width:100%;border:0;background:#fff}
 </style>
 </head><body>
 <header>
@@ -138,6 +147,16 @@ footer{padding:16px 20px;color:#aaa;font-size:11px;text-align:center}
     <button class="nclear" onclick="clearAll()">Clear all</button>
   </div>
   <div class="nmain" id="notes-list"></div>
+</div>
+
+<div id="viewer-overlay">
+  <div class="vhead">
+    <button class="vback" onclick="closeViewer()">&#8592; Back</button>
+    <span class="vtitle" id="viewer-title"></span>
+    <button class="vflag" id="viewer-flag">&#9873; Flag a problem</button>
+    <a class="vopen" id="viewer-open" target="_blank" rel="noopener">Open in Drive</a>
+  </div>
+  <iframe id="viewer-frame" title="Worksheet preview"></iframe>
 </div>
 
 <div id="flag-modal">
@@ -211,16 +230,30 @@ function btn(label,cls,href){
              :`<span class="b-soon">${label}</span>`;
 }
 // pill: action button + inline flag tab fused together
-function pill(label, pillcls, href, flagSubject, flagRef, flagTitle, resourceType){
+function pill(label, pillcls, href, flagSubject, flagRef, flagTitle, resourceType, onclickJs){
   const fk = flagKey(flagSubject, flagRef, flagTitle + "|" + resourceType);
   const flagged = isFlagged(fk);
   const action = href
-    ? `<a class="pa" href="${href}" target="_blank" rel="noopener">${label}</a>`
+    ? `<a class="pa" href="${href}" target="_blank" rel="noopener"${onclickJs?` onclick='${onclickJs};return false'`:""}>${label}</a>`
     : `<span class="pa" style="color:#aaa">${label}</span>`;
   const ft = `<button class="pf${flagged?" on":""}" title="Flag this ${resourceType}" onclick='openFlag(${JSON.stringify(flagSubject)},${JSON.stringify(flagRef)},${JSON.stringify(flagTitle+"|"+resourceType)})'>&#9873;</button>`;
   return `<span class="pill ${pillcls}">${action}${ft}</span>`;
 }
 function flagBtn(subject,paper,title){return "";}  // replaced by pill()
+
+// ---- In-app worksheet viewer with a flag button on the open worksheet ----
+function openViewer(url,subject,paper,title){
+  const pre=url.replace(/\/view.*$/,"/preview");
+  document.getElementById("viewer-frame").src=pre;
+  document.getElementById("viewer-title").textContent=title;
+  document.getElementById("viewer-open").href=url;
+  document.getElementById("viewer-flag").onclick=()=>openFlag(subject,paper,title+"|slides");
+  document.getElementById("viewer-overlay").classList.add("open");
+}
+function closeViewer(){
+  document.getElementById("viewer-overlay").classList.remove("open");
+  document.getElementById("viewer-frame").src="about:blank";
+}
 
 // ---- Tutee share: tick worksheets, copy their links as one pack ----
 let pickMode=false, picked={};
@@ -583,7 +616,7 @@ function renderGcse(){
     return `<div class="card"><div class="ctop">${cb}
       <div class="cmeta"><div class="ctitle">${r.title}</div></div>
       <div class="acts">
-        ${pill("Resources","p-drive",r.drive,r.subject,r.paper,r.title,"slides")}
+        ${pill("Resources","p-drive",r.drive,r.subject,r.paper,r.title,"slides",`openViewer(${JSON.stringify(r.drive)},${JSON.stringify(r.subject)},${JSON.stringify(r.paper)},${JSON.stringify(r.title)})`)}
         ${qs.length?`<button class="btn b-mcq" onclick='openQuiz(${JSON.stringify(r.title)},${JSON.stringify(r.subject)},${JSON.stringify(r.paper)})'>MCQs (${qs.length})</button>`:'<span class="b-soon">MCQs soon</span>'}
       </div></div></div>`;
   }).join("");
