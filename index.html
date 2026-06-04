@@ -425,28 +425,38 @@ function updateSyncBtn(){
   btn.textContent = n ? `Sync ${n} flag${n>1?"s":""} now` : "";
 }
 
-// override saveFlag to queue when offline
+// override saveFlag: confirm the note actually reached the shared sheet; never fail silently
 const _origSaveFlag = saveFlag;
 async function saveFlag(){
   const note=document.getElementById("flag-note").value.trim();
   const reviewer=document.getElementById("flag-reviewer").value.trim()||"Anonymous";
-  const entry={key:_flagKey,title:_flagTitle,note,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
-  _flags[_flagKey]=entry;
+  const category=document.getElementById("flag-category").value;
+  const entry={key:_flagKey,title:_flagTitle,note,category,phase:_flagPhase,reviewer,ts:new Date().toISOString()};
+  _flags[_flagKey]=entry;            // optimistic on-screen update
   closeFlag(); renderMain(); updateFab();
-  if(navigator.onLine && SCRIPT_URL && SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE"){
-    try{
-      await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(entry)});
-      return;
-    } catch(e){}
+  const queueIt=(msg)=>{
+    const q=getQueue().filter(i=>i.key!==entry.key); q.push(entry); saveQueue(q); updateSyncBtn();
+    alert(msg);
+  };
+  if(!(navigator.onLine && SCRIPT_URL && SCRIPT_URL!=="PASTE_SCRIPT_URL_HERE")){
+    queueIt("Note saved on THIS device only — not sent to the shared sheet yet (you appear to be offline). Tap the 'Sync now' button (bottom-right) once you have a connection."); return;
   }
-  // offline: queue it
-  const q = getQueue().filter(i=>i.key!==entry.key);
-  q.push(entry);
-  saveQueue(q);
-  updateSyncBtn();
+  try{
+    await fetch(SCRIPT_URL,{method:"POST",body:JSON.stringify(entry)});
+    // verify it actually landed on the sheet (POST can silently no-op on a flaky link)
+    const server=await (await fetch(SCRIPT_URL,{cache:"no-store"})).json();
+    const s=server[entry.key];
+    const landed = note ? (s && (s.note||"")===note) : !s;
+    if(landed){ _flags=server; updateFab(); renderMain(); return; }
+    queueIt("Saved on this device, but the shared sheet did not confirm it. Tap 'Sync now' (bottom-right) to retry — do not assume it is saved.");
+  } catch(e){
+    queueIt("Could not reach the shared sheet. Note kept on this device — tap 'Sync now' (bottom-right) to retry.");
+  }
 }
 
 window.addEventListener("online", ()=>{ updateSyncBtn(); syncQueue(); });
+// auto-retry any queued notes whenever the app opens
+window.addEventListener("load", ()=>{ updateSyncBtn(); if(navigator.onLine) syncQueue(); });
 window.addEventListener("offline", ()=>{ updateSyncBtn(); });
 
 function render(){
